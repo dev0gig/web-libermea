@@ -3,6 +3,7 @@ const modalFileInput = document.getElementById('modal-file-input');
 const viewer = document.getElementById('viewer');
 const imageContainer = document.getElementById('image-container');
 const topBar = document.getElementById('top-bar');
+const mainContent = document.getElementById('main-content');
 const uploadView = document.getElementById('upload-view');
 const bookTitle = document.getElementById('book-title');
 const clock = document.getElementById('clock');
@@ -30,6 +31,15 @@ const epubPageInput = document.getElementById('epub-page-input');
 const epubGotoBtn = document.getElementById('epub-goto-btn');
 const cbzPageInput = document.getElementById('cbz-page-input');
 const cbzGotoBtn = document.getElementById('cbz-goto-btn');
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        const context = this;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(context, args), wait);
+    };
+}
 
 let book = null;
 let rendition = null;
@@ -75,6 +85,7 @@ fileInput.addEventListener('change', (event) => handleFile(event.target.files[0]
 modalFileInput.addEventListener('change', (event) => {
     handleFile(event.target.files[0]);
     settingsModal.classList.add('hidden');
+    mainContent.classList.remove('modal-open');
 });
 
 function clearViewer() {
@@ -249,11 +260,20 @@ function updateClock() {
 }
 
 // Settings Modal Logic
-settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
-closeModalBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+settingsBtn.addEventListener('click', () => {
+   settingsModal.classList.remove('hidden');
+   mainContent.classList.add('modal-open');
+});
+
+closeModalBtn.addEventListener('click', () => {
+   settingsModal.classList.add('hidden');
+   mainContent.classList.remove('modal-open');
+});
+
 window.addEventListener('click', (event) => {
     if (event.target === settingsModal) {
         settingsModal.classList.add('hidden');
+        mainContent.classList.remove('modal-open');
     }
 });
 
@@ -318,10 +338,18 @@ increaseFontSizeBtn.addEventListener('click', () => {
     updateFontSize(currentFontSize + 10);
 });
 
+const debouncedThemeChange = debounce((theme) => {
+    if (rendition) {
+        rendition.themes.select(theme).catch((err) => {
+            console.error("Theme change failed:", err);
+        });
+    }
+}, 250);
+
 themeButtons.addEventListener('click', (event) => {
     const button = event.target.closest('button');
-    if (button && button.dataset.theme && rendition) {
-        rendition.themes.select(button.dataset.theme);
+    if (button && button.dataset.theme) {
+        debouncedThemeChange(button.dataset.theme);
     }
 });
 
