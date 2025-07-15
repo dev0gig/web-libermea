@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Web LiberMea</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            font-family: sans-serif;
+        }
+        #viewer, #image-container {
+            height: 100%;
+            width: 100%;
+        }
+        #viewer {
+             background: #fff; /* Default background for epubjs */
+        }
+        #image-container {
+            background: #000;
+        }
+        #image-container img {
+            object-fit: contain;
+            width: 100%;
+            height: 100%;
+        }
+        #image-container.scroll-mode img {
+            height: auto;
+            display: block;
+        }
+        #image-container {
+            overflow: hidden;
+        }
+        #progress-bar-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #4a5568;
+        }
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            background-color: #8b5cf6;
+            transition: width 0.2s ease-in-out;
+        }
+        #book-title {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 flex flex-col h-screen">
+
+    <!-- Top Bar -->
+    <div id="top-bar" class="bg-gray-800 text-white p-1 flex justify-between items-center shadow-lg hidden relative">
+        <div id="book-title" class="font-bold flex-shrink min-w-0"></div>
+        <div id="page-info" class="absolute left-1/2 -translate-x-1/2"></div>
+        <div class="flex items-center space-x-2">
+            <div id="clock" class=""></div>
+            <button id="settings-btn" class="text-xl"><i class="fas fa-cog"></i></button>
+        </div>
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main id="main-content" class="flex-grow relative bg-gray-900">
+        <div id="viewer" class="absolute inset-0 hidden"></div>
+        <div id="image-container" class="absolute inset-0 hidden"></div>
+
+        <!-- Click/Tap Navigation Overlays -->
+        <div id="prev-nav-overlay" class="absolute left-0 top-0 h-full w-[30%] z-10 hidden"></div>
+        <div id="next-nav-overlay" class="absolute right-0 top-0 h-full w-[30%] z-10 hidden"></div>
+        
+        <!-- Initial Upload View -->
+        <div id="upload-view" class="absolute inset-0 flex items-center justify-center">
+            <div class="text-center">
+                <h1 class="text-4xl font-bold text-center mb-8 text-white">Web LiberMea</h1>
+                <label for="file-input" class="cursor-pointer bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-6 rounded-full shadow-lg">
+                    Import EPUB or CBZ
+                </label>
+                <input type="file" id="file-input" class="hidden"/>
+                <div id="loading-container" class="mt-8 hidden">
+                    <div class="w-full bg-gray-700 rounded-full h-4">
+                        <div id="loading-bar" class="bg-violet-600 h-4 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="loading-text" class="text-white mt-2">Loading... 0%</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-8 max-w-sm w-full">
+            <h2 class="text-2xl font-bold mb-6 text-white text-center">Settings</h2>
+            <label for="modal-file-input" class="cursor-pointer w-full block text-center bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-6 rounded-full shadow-lg">
+                Import New EPUB or CBZ
+            </label>
+            <input type="file" id="modal-file-input" class="hidden"/>
+
+            <div id="epub-settings" class="hidden">
+                <div class="mt-6">
+                    <label class="block text-white mb-2 text-center">Font Size</label>
+                    <div class="flex items-center justify-center space-x-4">
+                        <button id="decrease-font-size" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full">-</button>
+                        <span id="font-size-value" class="text-white text-lg">100%</span>
+                        <button id="increase-font-size" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full">+</button>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <label class="block text-white mb-2 text-center">Theme</label>
+                    <div id="theme-buttons" class="grid grid-cols-2 gap-2">
+                        <button data-theme="white" class="theme-btn bg-white text-black p-2 rounded">White</button>
+                        <button data-theme="sepia" class="theme-btn bg-[#fbf0d9] text-[#5b4636] p-2 rounded">Sepia</button>
+                        <button data-theme="gray" class="theme-btn bg-gray-500 text-white p-2 rounded">Gray</button>
+                        <button data-theme="dark" class="theme-btn bg-black text-white p-2 rounded">AMOLED</button>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <label class="block text-white mb-2 text-center">Go to Percentage</label>
+                    <div class="flex justify-center space-x-2">
+                        <input type="number" id="epub-page-input" class="bg-gray-700 text-white w-24 text-center rounded" placeholder="%">
+                        <button id="epub-goto-btn" class="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded">Go</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="cbz-settings" class="hidden mt-6">
+                <label class="block text-white mb-2 text-center">CBZ Reading Mode</label>
+                <div class="flex justify-center space-x-4">
+                    <button id="cbz-mode-scroll" class="cbz-mode-btn bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full">Scroll</button>
+                    <button id="cbz-mode-page" class="cbz-mode-btn bg-violet-600 text-white font-bold py-2 px-4 rounded-full">Page</button>
+                </div>
+                <div id="cbz-page-direction-container" class="mt-4 flex items-center justify-center">
+                    <input type="checkbox" id="cbz-reverse-direction" class="form-checkbox h-5 w-5 text-violet-600 bg-gray-700 border-gray-600 rounded focus:ring-violet-500">
+                    <label for="cbz-reverse-direction" class="ml-2 text-white">Reverse Direction (Manga)</label>
+                </div>
+                <div class="mt-6">
+                    <label class="block text-white mb-2 text-center">Go to Page</label>
+                    <div class="flex justify-center space-x-2">
+                        <input type="number" id="cbz-page-input" class="bg-gray-700 text-white w-24 text-center rounded" placeholder="Page">
+                        <button id="cbz-goto-btn" class="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded">Go</button>
+                    </div>
+                </div>
+            </div>
+
+            <button id="close-modal-btn" class="mt-6 w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-full">Close</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
