@@ -6,7 +6,6 @@
     <title>Web LiberMea</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body, html {
@@ -60,17 +59,30 @@
        #main-content.modal-open {
            pointer-events: none;
        }
+       .loader {
+            border: 4px solid #404040; /* neutral-700 */
+            border-top: 4px solid #8b5cf6; /* violet-600 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body class="bg-neutral-900 text-gray-100 flex flex-col h-screen">
 
     <!-- Top Bar -->
-    <div id="top-bar" class="bg-neutral-800 text-white p-1 flex justify-between items-center shadow-lg hidden relative z-20">
+    <div id="top-bar" class="text-white p-1 flex justify-between items-center hidden fixed top-0 left-0 w-full z-20" style="background: linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 100%);">
         <div id="book-title" class="font-bold flex-shrink min-w-0"></div>
         <div id="page-info" class="absolute left-1/2 -translate-x-1/2"></div>
         <div class="flex items-center space-x-2">
             <div id="clock" class=""></div>
-            <button id="settings-btn" class="text-xl"><i class="fas fa-cog"></i></button>
         </div>
         <div id="progress-bar-container">
             <div id="progress-bar"></div>
@@ -84,62 +96,41 @@
 
         <!-- Click/Tap Navigation Overlays -->
         <div id="prev-nav-overlay" class="absolute left-0 top-0 h-full w-[30%] z-10 hidden"></div>
+        <div id="center-nav-overlay" class="absolute left-[30%] top-0 h-full w-[40%] z-10 hidden"></div>
         <div id="next-nav-overlay" class="absolute right-0 top-0 h-full w-[30%] z-10 hidden"></div>
         
-        <!-- Initial Upload View -->
-        <div id="upload-view" class="absolute inset-0 flex items-center justify-center">
-            <div class="text-center">
-                <h1 class="text-4xl font-bold text-center mb-8 text-white">Web LiberMea</h1>
-                <label for="file-input" class="cursor-pointer bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-6 rounded-full shadow-lg">
-                    Import EPUB or CBZ
-                </label>
-                <input type="file" id="file-input" class="hidden"/>
-                <div id="loading-container" class="mt-8 hidden">
-                    <div class="w-full bg-neutral-700 rounded-full h-4">
-                        <div id="loading-bar" class="bg-violet-600 h-4 rounded-full" style="width: 0%"></div>
-                    </div>
-                    <p id="loading-text" class="text-white mt-2">Loading... 0%</p>
-                </div>
-            </div>
-        </div>
+        <!-- Initial Upload View is removed, replaced by a modal -->
     </main>
 
+    <!-- Import Modal -->
+    <div id="import-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-neutral-800 rounded-lg shadow-xl p-8 max-w-sm w-full text-center">
+             <h1 class="text-4xl font-bold text-center mb-8 text-white">Web LiberMea</h1>
+             <label for="file-input" id="file-input-label" tabindex="0" class="cursor-pointer bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-6 rounded-full shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500">
+                 Import CBZ
+             </label>
+             <input type="file" id="file-input" class="hidden"/>
+             <div id="loading-container" class="mt-8 hidden">
+                 <div class="loader"></div>
+             </div>
+        </div>
+    </div>
+
+
+   <!-- FAB Settings Button -->
+   <button id="settings-fab" class="fixed bottom-4 right-4 bg-violet-600 hover:bg-violet-700 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-2xl z-30 hidden">
+       <i class="fas fa-cog"></i>
+   </button>
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
         <div class="bg-neutral-800 rounded-lg shadow-xl p-8 max-w-sm w-full">
             <h2 class="text-2xl font-bold mb-6 text-white text-center">Settings</h2>
             <label for="modal-file-input" class="cursor-pointer w-full block text-center bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-6 rounded-full shadow-lg">
-                Import New EPUB or CBZ
+                Import New CBZ
             </label>
             <input type="file" id="modal-file-input" class="hidden"/>
 
-            <div id="epub-settings" class="hidden">
-                <div class="mt-6">
-                    <label class="block text-white mb-2 text-center">Font Size</label>
-                    <div class="flex items-center justify-center space-x-4">
-                        <button id="decrease-font-size" class="bg-neutral-600 hover:bg-neutral-700 text-white font-bold py-2 px-4 rounded-full">-</button>
-                        <span id="font-size-value" class="text-white text-lg">100%</span>
-                        <button id="increase-font-size" class="bg-neutral-600 hover:bg-neutral-700 text-white font-bold py-2 px-4 rounded-full">+</button>
-                    </div>
-                </div>
-                <div class="mt-6">
-                    <label class="block text-white mb-2 text-center">Theme</label>
-                    <div id="theme-buttons" class="grid grid-cols-2 gap-2">
-                        <button data-theme="white" class="theme-btn bg-white text-black p-2 rounded">White</button>
-                        <button data-theme="sepia" class="theme-btn bg-[#fbf0d9] text-[#5b4636] p-2 rounded">Sepia</button>
-                        <button data-theme="gray" class="theme-btn bg-neutral-500 text-white p-2 rounded">Gray</button>
-                        <button data-theme="dark" class="theme-btn bg-black text-white p-2 rounded">AMOLED</button>
-                    </div>
-                </div>
-                <div class="mt-6">
-                    <label class="block text-white mb-2 text-center">Go to Percentage</label>
-                    <div class="flex justify-center space-x-2">
-                        <input type="number" id="epub-page-input" class="bg-neutral-700 text-white w-24 text-center rounded" placeholder="%">
-                        <button id="epub-goto-btn" class="bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded">Go</button>
-                    </div>
-                </div>
-            </div>
 
             <div id="cbz-settings" class="hidden mt-6">
                 <label class="block text-white mb-2 text-center">CBZ Reading Mode</label>
